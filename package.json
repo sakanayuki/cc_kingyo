@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "generate:poi": "node tools/generate-poi.mjs"
+    "generate:poi": "node tools/generate-poi.mjs",
+    "process:poi": "node tools/process-poi.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
