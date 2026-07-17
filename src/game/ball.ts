@@ -4,12 +4,10 @@ export type BallPattern = "plain" | "star" | "stripe";
 export type BallState = "float" | "scooping" | "flying" | "gone";
 
 export interface Ball {
-  /** 水流の周回角度(ラジアン) */
-  angle: number;
-  /** 角速度(ラジアン/秒)。ゆっくり周回する */
-  speed: number;
-  /** 周回軌道の半径(プール短辺に対する割合 0..1) */
+  /** 好みの周回半径(プール半径に対する割合 0..1)。水流がこの半径へ緩く引き戻す */
   orbit: number;
+  /** 水流に乗って進む速さ(ピクセル/秒) */
+  flowSpeed: number;
   /** ぷかぷか揺れの位相 */
   bobPhase: number;
   big: boolean;
@@ -18,7 +16,7 @@ export interface Ball {
   colorDark: string;
   pattern: BallPattern;
   state: BallState;
-  /** 描画座標(update で計算) */
+  /** 現在座標(水流 + 衝突分離で更新される) */
   x: number;
   y: number;
   /** 出現時のフェードイン 0..1 */
@@ -41,9 +39,8 @@ export function spawnBall(): Ball {
   const big = Math.random() < BIG_BALL_RATE;
   const [color, colorDark] = COLORS[Math.floor(Math.random() * COLORS.length)];
   return {
-    angle: Math.random() * Math.PI * 2,
-    speed: 0.12 + Math.random() * 0.1,
     orbit: 0.35 + Math.random() * 0.55,
+    flowSpeed: 16 + Math.random() * 14,
     bobPhase: Math.random() * Math.PI * 2,
     big,
     r: big ? BALL_RADIUS_BIG : BALL_RADIUS,
@@ -57,7 +54,10 @@ export function spawnBall(): Ball {
   };
 }
 
-/** 水流に沿ってボールを進め、描画座標を更新する(プール全体を使う楕円軌道) */
+/**
+ * 水流に沿ってボールを進める。座標そのものが状態なので、
+ * 衝突分離で押しのけられてもそこから自然に流れ続ける。
+ */
 export function updateBall(
   ball: Ball,
   dtSec: number,
@@ -67,11 +67,93 @@ export function updateBall(
   ry: number,
 ): void {
   if (ball.state !== "float") return;
-  ball.angle += ball.speed * dtSec;
   ball.bobPhase += dtSec * 2;
   ball.fade = Math.min(1, ball.fade + dtSec * 1.5);
-  ball.x = cx + Math.cos(ball.angle) * rx * ball.orbit + Math.sin(ball.bobPhase) * 3;
-  ball.y = cy + Math.sin(ball.angle) * ry * ball.orbit + Math.cos(ball.bobPhase * 0.8) * 3;
+
+  // プールを単位円とみなした座標系で接線(反時計回り)方向を求める
+  const ux = (ball.x - cx) / rx;
+  const uy = (ball.y - cy) / ry;
+  const ur = Math.max(Math.hypot(ux, uy), 1e-4);
+  let tx = (-uy / ur) * rx;
+  let ty = (ux / ur) * ry;
+  const tLen = Math.max(Math.hypot(tx, ty), 1e-4);
+  tx /= tLen;
+  ty /= tLen;
+
+  // 好みの周回半径へ緩く引き戻す径方向の速度
+  const radial = (ball.orbit - ur) * 40;
+  const nx = (ux / ur) * rx;
+  const ny = (uy / ur) * ry;
+  const nLen = Math.max(Math.hypot(nx, ny), 1e-4);
+
+  ball.x += (tx * ball.flowSpeed + (nx / nLen) * radial) * dtSec;
+  ball.y += (ty * ball.flowSpeed + (ny / nLen) * radial) * dtSec;
+
+  // ぷかぷか揺れ(速度として加えるので分離結果を壊さない)
+  ball.x += Math.cos(ball.bobPhase) * 2.5 * dtSec;
+  ball.y += Math.sin(ball.bobPhase * 0.8) * 2.5 * dtSec;
+
+  // プールの外へは出さない
+  clampToPool(ball, cx, cy, rx, ry);
+}
+
+/** プール(楕円)の内側にとどめる */
+export function clampToPool(ball: Ball, cx: number, cy: number, rx: number, ry: number): void {
+  const ux = (ball.x - cx) / rx;
+  const uy = (ball.y - cy) / ry;
+  const ur = Math.hypot(ux, uy);
+  if (ur > 0.97) {
+    const k = 0.97 / ur;
+    ball.x = cx + ux * k * rx;
+    ball.y = cy + uy * k * ry;
+  }
+}
+
+/**
+ * ボール同士の重なりを解消する(浮いているボールのみ)。
+ * 重なった分だけ互いを押しのける位置ベースの分離を反復して安定させる。
+ */
+export function separateBalls(
+  balls: Ball[],
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+): void {
+  const floats = balls.filter((b) => b.state === "float");
+  const GAP = 3; // ボール間に最低限あける隙間
+  for (let iter = 0; iter < 3; iter++) {
+    let moved = false;
+    for (let i = 0; i < floats.length; i++) {
+      for (let j = i + 1; j < floats.length; j++) {
+        const a = floats[i];
+        const b = floats[j];
+        const minD = a.r + b.r + GAP;
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let d = Math.hypot(dx, dy);
+        if (d >= minD) continue;
+        if (d < 1e-3) {
+          // 完全に重なったらランダム方向に離す
+          const ang = Math.random() * Math.PI * 2;
+          dx = Math.cos(ang);
+          dy = Math.sin(ang);
+          d = 1;
+        }
+        const push = (minD - d) / 2;
+        a.x += (dx / d) * push;
+        a.y += (dy / d) * push;
+        b.x -= (dx / d) * push;
+        b.y -= (dy / d) * push;
+        moved = true;
+      }
+    }
+    if (moved) {
+      for (const b of floats) clampToPool(b, cx, cy, rx, ry);
+    } else {
+      break;
+    }
+  }
 }
 
 export function drawBall(ctx: CanvasRenderingContext2D, ball: Ball): void {

@@ -1,4 +1,4 @@
-import { Ball, drawBall, spawnBall, updateBall } from "./ball";
+import { Ball, drawBall, separateBalls, spawnBall, updateBall } from "./ball";
 import { BALL_COUNT, RESPAWN_DELAY_MS, TAP_MARGIN } from "./config";
 import {
   createSplashes,
@@ -63,10 +63,31 @@ export class Pool {
     for (let i = 0; i < BALL_COUNT; i++) {
       const b = spawnBall();
       b.fade = 1;
+      this.placeBall(b);
       this.balls.push(b);
     }
-    // 初期位置を確定させる
-    this.update(0);
+  }
+
+  /** 他のボールと重ならない位置に配置する */
+  private placeBall(ball: Ball): void {
+    const cx = this.width / 2;
+    const cy = this.height / 2;
+    const rx = Math.max(this.width / 2 - 45, 40);
+    const ry = Math.max(this.height / 2 - 55, 40);
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const ang = Math.random() * Math.PI * 2;
+      const ur = ball.orbit * (0.8 + Math.random() * 0.3);
+      ball.x = cx + Math.cos(ang) * rx * ur;
+      ball.y = cy + Math.sin(ang) * ry * ur;
+      const overlapping = this.balls.some(
+        (other) =>
+          other !== ball &&
+          other.state === "float" &&
+          Math.hypot(other.x - ball.x, other.y - ball.y) < other.r + ball.r + 6,
+      );
+      if (!overlapping) return;
+    }
+    // 空きが見つからなくても配置は諦めない(分離処理が徐々に押し広げる)
   }
 
   /** すくい演出を開始する。演出完了で resolve する Promise を返す */
@@ -94,6 +115,7 @@ export class Pool {
     const ry = Math.max(this.height / 2 - 55, 40);
 
     for (const b of this.balls) updateBall(b, dt, cx, cy, rx, ry);
+    separateBalls(this.balls, cx, cy, rx, ry);
     updateSplashes(this.splashes, dt);
 
     for (let i = this.anims.length - 1; i >= 0; i--) {
@@ -160,7 +182,11 @@ export class Pool {
   private scheduleRespawn(ball: Ball): void {
     const timer = window.setTimeout(() => {
       const i = this.balls.indexOf(ball);
-      if (i >= 0) this.balls[i] = spawnBall();
+      if (i >= 0) {
+        const fresh = spawnBall();
+        this.placeBall(fresh);
+        this.balls[i] = fresh;
+      }
     }, RESPAWN_DELAY_MS);
     this.respawnTimers.push(timer);
   }
