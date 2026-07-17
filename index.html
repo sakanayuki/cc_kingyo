@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#1b2a5e" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏮</text></svg>"
+    />
+    <title>スーパーボールすくい</title>
+  </head>
+  <body>
+    <div id="app">
+      <button id="mute-btn" type="button" aria-label="おとのオンオフ">🔊</button>
+
+      <!-- トップ画面 -->
+      <section id="screen-top" class="screen">
+        <div class="lanterns" aria-hidden="true">
+          <span class="lantern"></span><span class="lantern"></span><span class="lantern"></span
+          ><span class="lantern"></span><span class="lantern"></span>
+        </div>
+        <h1 class="title">
+          <span class="title-line">スーパーボール</span>
+          <span class="title-line">すくい</span>
+        </h1>
+        <div class="top-balls" aria-hidden="true">
+          <span class="deco-ball b1"></span><span class="deco-ball b2"></span
+          ><span class="deco-ball b3"></span><span class="deco-ball b4"></span>
+        </div>
+        <p id="top-highscore" class="highscore" hidden></p>
+        <button id="start-btn" class="big-btn" type="button">スタート</button>
+      </section>
+
+      <!-- ゲーム画面 -->
+      <section id="screen-game" class="screen" hidden>
+        <header class="game-header">
+          <div class="hp-area">
+            <span class="hp-label">ポイの たいりょく</span>
+            <div class="hp-row">
+              <span id="poi-icon" class="poi-icon stage-0" aria-hidden="true"></span>
+              <div class="hp-bar"><div id="hp-fill"></div></div>
+            </div>
+          </div>
+          <div class="score-area">
+            <span id="score-display">×0</span>
+            <button id="give-up-btn" type="button">あきらめる</button>
+          </div>
+        </header>
+
+        <div class="pool-wrap">
+          <canvas id="pool-canvas"></canvas>
+          <div id="judgement" class="judgement" hidden></div>
+          <div id="cutin" class="cutin" hidden>
+            <div class="cutin-band">
+              <canvas id="cutin-canvas" width="180" height="180"></canvas>
+              <span class="cutin-text">ぴったり！</span>
+            </div>
+          </div>
+        </div>
+
+        <footer class="gauge-area">
+          <p class="gauge-label">まんなかで すくうと ポイが やぶれないよ</p>
+          <div class="gauge-track">
+            <div class="zone zone-bad"></div>
+            <div class="zone zone-good"></div>
+            <div class="zone zone-perfect"></div>
+            <div class="zone zone-good"></div>
+            <div class="zone zone-bad"></div>
+            <div id="gauge-marker" class="gauge-marker">▼</div>
+          </div>
+        </footer>
+      </section>
+
+      <!-- 終了画面 -->
+      <section id="screen-result" class="screen" hidden>
+        <div class="lanterns" aria-hidden="true">
+          <span class="lantern"></span><span class="lantern"></span><span class="lantern"></span
+          ><span class="lantern"></span><span class="lantern"></span>
+        </div>
+        <h2 class="result-heading">けっか</h2>
+        <p class="result-score"><span id="result-count">0</span> こ すくえた！</p>
+        <p id="result-praise" class="result-praise"></p>
+        <p id="result-newrecord" class="result-newrecord" hidden>🎉 さいこうきろく！</p>
+        <button id="retry-btn" class="big-btn" type="button">もういちど あそぶ</button>
+      </section>
+
+      <div id="rotate-overlay">📱 スマホを たてに してね</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
