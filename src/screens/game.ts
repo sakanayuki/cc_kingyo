@@ -2,11 +2,17 @@ import { audio } from "../audio";
 import { Ball } from "../game/ball";
 import {
   BAD_ZONE_FACTOR,
+  BAR_MAX,
+  BAR_MIN,
+  barPeriodFor,
   BIG_BALL_FACTOR,
   CUTIN_MS,
   DAMAGE_BASE,
   HP_MAX,
+  MAX_SCORE,
   SCOOP_MS,
+  zoneGoodFor,
+  zonePerfectFor,
 } from "../game/config";
 import { Gauge, judgeZone, Zone } from "../game/gauge";
 import { Pool } from "../game/pool";
@@ -47,6 +53,9 @@ export class GameScreen {
   private readonly judgement = $("#judgement");
   private readonly cutin = $("#cutin");
   private readonly cutinCanvas = document.querySelector<HTMLCanvasElement>("#cutin-canvas")!;
+  private readonly zoneEls = Array.from(
+    document.querySelectorAll<HTMLElement>("#screen-game .gauge-track .zone"),
+  );
   private judgementTimer = 0;
 
   constructor(private readonly onEnd: (score: number) => void) {
@@ -71,6 +80,7 @@ export class GameScreen {
     this.cutin.hidden = true;
     this.judgement.hidden = true;
     this.updateHud();
+    this.applyDifficulty();
     this.running = true;
     this.lastTime = performance.now();
     cancelAnimationFrame(this.rafId);
@@ -93,7 +103,7 @@ export class GameScreen {
     this.state.locked = true;
     this.gauge.pause();
 
-    const zone = judgeZone(this.gauge.value);
+    const zone = judgeZone(this.gauge.value, this.state.score);
     audio.splash();
     this.showJudgement(zone, ball);
 
@@ -111,6 +121,15 @@ export class GameScreen {
       this.state.hp = Math.max(0, this.state.hp - dmg);
     }
     this.updateHud();
+    this.applyDifficulty();
+
+    // 全ボールすくい達成で強制終了
+    if (this.state.score >= MAX_SCORE) {
+      audio.fanfare();
+      await delay(600);
+      this.finish();
+      return;
+    }
 
     if (this.state.hp <= 0) {
       audio.tear();
@@ -121,6 +140,22 @@ export class GameScreen {
     }
     this.gauge.resume();
     this.state.locked = false;
+  }
+
+  /** スコアに応じた難易度をバー周期とゾーン表示幅に反映する */
+  private applyDifficulty(): void {
+    const score = this.state.score;
+    this.gauge.setPeriod(barPeriodFor(score));
+
+    // ゾーンの表示幅を判定と一致させる(バー全体 = BAR_MIN..BAR_MAX)
+    const range = BAR_MAX - BAR_MIN;
+    const perfectW = (zonePerfectFor(score) * 2 * 100) / range;
+    const goodW = ((zoneGoodFor(score) - zonePerfectFor(score)) * 100) / range;
+    const badW = 50 - goodW - perfectW / 2;
+    const widths = [badW, goodW, perfectW, goodW, badW];
+    this.zoneEls.forEach((el, i) => {
+      el.style.flexBasis = `${widths[i]}%`;
+    });
   }
 
   private finish(): void {

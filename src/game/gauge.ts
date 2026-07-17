@@ -1,11 +1,12 @@
-import { BAR_MAX, BAR_MIN, BAR_PERIOD_MS, ZONE_GOOD, ZONE_PERFECT } from "./config";
+import { BAR_MAX, BAR_MIN, BAR_PERIOD_MS, zoneGoodFor, zonePerfectFor } from "./config";
 
 export type Zone = "perfect" | "good" | "bad";
 
-export function judgeZone(v: number): Zone {
+/** 現在のスコアに応じた難易度でゾーン判定する */
+export function judgeZone(v: number, score: number): Zone {
   const a = Math.abs(v);
-  if (a <= ZONE_PERFECT) return "perfect";
-  if (a <= ZONE_GOOD) return "good";
+  if (a <= zonePerfectFor(score)) return "perfect";
+  if (a <= zoneGoodFor(score)) return "good";
   return "bad";
 }
 
@@ -16,9 +17,15 @@ export function judgeZone(v: number): Zone {
 export class Gauge {
   private phase = 0; // 0..1 (0.5 で +50 折り返し)
   private running = true;
+  private periodMs = BAR_PERIOD_MS;
 
   constructor(private readonly marker: HTMLElement) {
     this.render();
+  }
+
+  /** 難易度に応じて往復周期を変える(位相は連続なのでマーカーは飛ばない) */
+  setPeriod(ms: number): void {
+    this.periodMs = ms;
   }
 
   get value(): number {
@@ -30,7 +37,7 @@ export class Gauge {
 
   update(dtMs: number): void {
     if (!this.running) return;
-    this.phase = (this.phase + dtMs / BAR_PERIOD_MS) % 1;
+    this.phase = (this.phase + dtMs / this.periodMs) % 1;
     this.render();
   }
 
@@ -45,6 +52,7 @@ export class Gauge {
   reset(): void {
     this.phase = 0;
     this.running = true;
+    this.periodMs = BAR_PERIOD_MS;
     this.render();
   }
 

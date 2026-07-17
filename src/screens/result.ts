@@ -1,7 +1,9 @@
 import { audio } from "../audio";
+import { MAX_SCORE } from "../game/config";
 import { getHighScore, setHighScore } from "../storage";
 
 function praiseFor(score: number): string {
+  if (score >= MAX_SCORE) return "すべてのボールをすくったよ！";
   if (score <= 0) return "ざんねん";
   if (score <= 3) return "すごい！";
   if (score <= 9) return "とてもじょうず！";
